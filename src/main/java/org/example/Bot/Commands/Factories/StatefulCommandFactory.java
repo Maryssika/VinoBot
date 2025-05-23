@@ -7,10 +7,15 @@ import org.example.DAO.Wine;
 import org.example.DAO.WineDAO;
 import org.example.Utils.ExcelFavoritesManager;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Фабрика команд с поддержкой состояний для обработки последовательных действий пользователя.
+ * Управляет состояниями при добавлении в избранное и других многошаговых операциях.
+ */
 public class StatefulCommandFactory {
     /**
      * Хранит состояния пользователей в формате chatId -> состояние
@@ -38,14 +43,10 @@ public class StatefulCommandFactory {
     public static Command getCommand(String messageText, long chatId) {
         String lowerCaseText = messageText.toLowerCase().trim();
 
-        /**
-         * Проверяет наличие активного состояния у пользователя
-         */
+        // Проверяем наличие активного состояния у пользователя
         String state = userStates.get(chatId);
         if (state != null) {
-            /**
-             * Обрабатывает ввод в зависимости от текущего состояния
-             */
+            // Обрабатываем ввод в зависимости от текущего состояния
             switch (state) {
                 case "ADD_FAV_WINE":
                     userStates.remove(chatId);
@@ -54,7 +55,7 @@ public class StatefulCommandFactory {
                                 try {
                                     List<Wine> wines = wineDAO.findWinesByName(wineName);
                                     if (!wines.isEmpty()) {
-                                        ExcelFavoritesManager.addWineToFavorites(wines.get(0));
+                                        ExcelFavoritesManager.addFavorite(wines.get(0).getName(), "Wine");
                                         return "Вино добавлено в избранное: " + wines.get(0).getName();
                                     }
                                     return "Вино не найдено";
@@ -72,7 +73,7 @@ public class StatefulCommandFactory {
                                             .filter(d -> d.getName().equalsIgnoreCase(dishName))
                                             .toList();
                                     if (!dishes.isEmpty()) {
-                                        ExcelFavoritesManager.addDishToFavorites(dishes.get(0));
+                                        ExcelFavoritesManager.addFavorite(dishes.get(0).getName(), "Dish");
                                         return "Блюдо добавлено в избранное: " + dishes.get(0).getName();
                                     }
                                     return "Блюдо не найдено";
@@ -84,9 +85,7 @@ public class StatefulCommandFactory {
             }
         }
 
-        /**
-         * Обрабатывает стандартные команды, если у пользователя нет активного состояния
-         */
+        // Обрабатываем стандартные команды, если у пользователя нет активного состояния
         if (lowerCaseText.startsWith("/addfavwine")) {
             userStates.put(chatId, "ADD_FAV_WINE");
             return (cId, input) -> new SendMessage(String.valueOf(cId),
