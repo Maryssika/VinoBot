@@ -18,13 +18,10 @@ import java.util.*;
 import java.util.function.Function;
 
 /**
- * Фабрика команд для Telegram бота, отвечающая за создание экземпляров команд
- * на основе входящих сообщений и текущего состояния пользователя.
- * Обрабатывает все основные команды бота: подбор сочетаний, фильтрацию вин,
- * оценку сочетаний и управление избранным.
+ * Фабрика команд для обработки сообщений Telegram бота
  */
-public class CommandFactory {
 
+public class CommandFactory {
     private static final WineDAO wineDAO;
     private static final DishDAO dishDAO;
     private static final Map<Long, String> userStates = new HashMap<>();
@@ -32,10 +29,8 @@ public class CommandFactory {
 
     static {
         try {
-
             Dotenv dotenv = loadConfiguration();
             Connection connection = createDatabaseConnection(dotenv);
-
             wineDAO = new WineDAO(connection);
             dishDAO = new DishDAO(connection);
         } catch (Exception e) {
@@ -43,15 +38,8 @@ public class CommandFactory {
         }
     }
 
-    /**
-     * Загружает конфигурацию из .env файла
-     * @return объект Dotenv с загруженными переменными окружения
-     * @throws IllegalStateException если отсутствуют обязательные переменные
-     */
-
     private static Dotenv loadConfiguration() {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
-
         validateEnvVariable(dotenv, "POSTGRES_URL");
         validateEnvVariable(dotenv, "POSTGRES_USER");
         validateEnvVariable(dotenv, "POSTGRES_PASSWORD");
@@ -60,25 +48,11 @@ public class CommandFactory {
         return dotenv;
     }
 
-    /**
-     * Проверяет наличие и валидность переменной окружения
-     * @param dotenv объект с переменными окружения
-     * @param key имя проверяемой переменной
-     * @throws IllegalStateException если переменная отсутствует или пуста
-     */
-
     private static void validateEnvVariable(Dotenv dotenv, String key) {
         if (dotenv.get(key) == null || dotenv.get(key).isEmpty()) {
             throw new IllegalStateException("Необходимая переменная " + key + " отсутствует в .env файле");
         }
     }
-
-    /**
-     * Создает соединение с базой данных PostgreSQL
-     * @param dotenv объект с параметрами подключения
-     * @return объект Connection для работы с БД
-     * @throws SQLException при ошибках подключения
-     */
 
     private static Connection createDatabaseConnection(Dotenv dotenv) throws SQLException {
         return DriverManager.getConnection(
@@ -87,13 +61,6 @@ public class CommandFactory {
                 dotenv.get("POSTGRES_PASSWORD")
         );
     }
-
-    /**
-     * Возвращает соответствующую команду на основе текста сообщения и состояния пользователя
-     * @param messageText текст сообщения от пользователя
-     * @param chatId идентификатор чата
-     * @return экземпляр Command для обработки сообщения
-     */
 
     public static Command getCommand(String messageText, long chatId) {
         if ("/start".equalsIgnoreCase(messageText.trim())) {
@@ -107,46 +74,52 @@ public class CommandFactory {
 
         String lowerCaseText = messageText.toLowerCase().trim();
 
-
-        if (lowerCaseText.startsWith("/red") || lowerCaseText.startsWith("/white") ||
-                lowerCaseText.startsWith("/rose") || lowerCaseText.startsWith("/dessert")) {
-            return createWineTypeFilterCommand(lowerCaseText.substring(1));
+        if (lowerCaseText.startsWith("/red")) {
+            return createWineTypeFilterCommand("Красное");
         }
-
+        else if (lowerCaseText.startsWith("/white")) {
+            return createWineTypeFilterCommand("Белое");
+        }
+        else if (lowerCaseText.startsWith("/rose")) {
+            return createWineTypeFilterCommand("Розовое");
+        }
+        else if (lowerCaseText.startsWith("/dessert")) {
+            return createWineTypeFilterCommand("Десертное");
+        }
         else if (lowerCaseText.startsWith("/pair") || !messageText.startsWith("/")) {
             String wineName = lowerCaseText.startsWith("/pair") ?
                     messageText.substring(5).trim() : messageText.trim();
             return new PairCommand(wineDAO, dishDAO, wineName, chatId, pairingContexts);
         }
-
         else if (lowerCaseText.startsWith("/wines")) {
             return createListCommand("Список вин:\n", wineDAO::getAllWines, Wine::toString);
         }
-
         else if (lowerCaseText.startsWith("/dishes")) {
             return createListCommand("Список блюд:\n", dishDAO::getAllDishes, Dish::toString);
         }
-
         else if (lowerCaseText.startsWith("/rate")) {
-            return handleRatingCommand(chatId, messageText);
+            return handleRateCommand(chatId);
         }
-
+        else if (lowerCaseText.equals("хорошо") || lowerCaseText.equals("плохо")) {
+            return handleRatingResponse(chatId, lowerCaseText);
+        }
         else if (lowerCaseText.startsWith("/favorites")) {
-            return (cId, ignored) -> {
+            return (cId, input) -> {
                 try {
                     List<String> favorites = ExcelFavoritesManager.getFavorites();
-                    return new SendMessage(String.valueOf(cId), favorites.isEmpty() ?
+                    SendMessage message = new SendMessage(String.valueOf(cId), favorites.isEmpty() ?
                             "Список избранных сочетаний пуст" :
                             "Избранные сочетания:\n" + String.join("\n\n", favorites));
+                    message.setReplyMarkup(createMainKeyboard());
+                    return message;
                 } catch (Exception e) {
                     return new SendMessage(String.valueOf(cId),
                             "Ошибка при получении избранных сочетаний: " + e.getMessage());
                 }
             };
         }
-
         else if (lowerCaseText.startsWith("/help")) {
-            return (cId, ignored) -> new SendMessage(String.valueOf(cId),
+            SendMessage helpMessage = new SendMessage(String.valueOf(chatId),
                     "Доступные команды:\n" +
                             "/red - красные вина\n" +
                             "/white - белые вина\n" +
@@ -155,33 +128,73 @@ public class CommandFactory {
                             "[Название вина] - подбор блюд\n" +
                             "/wines - список всех вин\n" +
                             "/dishes - список всех блюд\n" +
-                            "/rate [good/bad] - оценить сочетание\n" +
+                            "/rate - оценить текущее сочетание\n" +
                             "/favorites - избранные сочетания\n" +
                             "/help - справка");
+            helpMessage.setReplyMarkup(createMainKeyboard());
+            return (cId, input) -> helpMessage;
         }
+
         return new UnknownCommand();
     }
 
-    /**
-     * Создает команду для фильтрации вин по типу
-     * @param wineType тип вина (red, white, rose, dessert)
-     * @return команда для выполнения фильтрации
-     */
+    private static Command handleRateCommand(long chatId) {
+        return (cId, input) -> {
+            PairingContext context = pairingContexts.get(chatId);
+            if (context == null) {
+                return new SendMessage(String.valueOf(cId),
+                        "Сначала подберите сочетание с помощью команды /pair [вино]");
+            }
 
-    private static Command createWineTypeFilterCommand(String wineType) {
+            SendMessage message = new SendMessage(String.valueOf(cId),
+                    "Текущее сочетание для оценки:\n" +
+                            "🍷 Вино: " + context.getWineName() + "\n" +
+                            "🍽 Блюдо: " + context.getDish().getName() + "\n\n" +
+                            "Напишите 'хорошо' или 'плохо' для оценки этого сочетания");
+            message.setReplyMarkup(createRatingKeyboard());
+            return message;
+        };
+    }
+
+    private static Command handleRatingResponse(long chatId, String rating) {
+        return (cId, input) -> {
+            PairingContext context = pairingContexts.get(chatId);
+            if (context == null) {
+                return new SendMessage(String.valueOf(cId),
+                        "Нет активного сочетания для оценки. Сначала подберите сочетание.");
+            }
+
+            if ("хорошо".equals(rating)) {
+                userStates.put(chatId, "CONFIRM_FAVORITE");
+                SendMessage message = new SendMessage(String.valueOf(cId),
+                        "Вы оценили сочетание как хорошее:\n" +
+                                "🍷 Вино: " + context.getWineName() + "\n" +
+                                "🍽 Блюдо: " + context.getDish().getName() + "\n\n" +
+                                "Добавить это сочетание в избранное?");
+                message.setReplyMarkup(createYesNoKeyboard());
+                return message;
+            } else {
+                pairingContexts.remove(chatId);
+                SendMessage response = new SendMessage(String.valueOf(cId),
+                        "Спасибо за вашу оценку! Сочетание помечено как неподходящее.");
+                response.setReplyMarkup(createMainKeyboard());
+                return response;
+            }
+        };
+    }
+
+    private static Command createWineTypeFilterCommand(String russianType) {
         return (cId, input) -> {
             try {
-
                 List<Wine> wines = wineDAO.getAllWines().stream()
-                        .filter(w -> w.getType().toString().equalsIgnoreCase(wineType))
+                        .filter(w -> w.getType().toString().equalsIgnoreCase(russianType))
                         .toList();
 
                 if (wines.isEmpty()) {
-                    return new SendMessage(String.valueOf(cId), "Не найдено вин типа: " + wineType);
+                    return new SendMessage(String.valueOf(cId), "Не найдено вин типа: " + russianType);
                 }
 
-
-                StringBuilder response = new StringBuilder("Вина типа " + wineType + ":\n\n");
+                StringBuilder response = new StringBuilder("Вина типа " + russianType + ":\n\n");
                 for (Wine wine : wines) {
                     response.append(wine.toString()).append("\n\n");
                 }
@@ -193,60 +206,6 @@ public class CommandFactory {
         };
     }
 
-    /**
-     * Обрабатывает команду оценки сочетания
-     * @param chatId ID чата пользователя
-     * @param messageText текст сообщения с оценкой
-     * @return соответствующая команда для обработки оценки
-     */
-
-    private static Command handleRatingCommand(long chatId, String messageText) {
-        String[] parts = messageText.split(" ");
-
-        if (parts.length < 2) {
-            return (cId, input) -> new SendMessage(String.valueOf(cId),
-                    "Используйте: /rate good или /rate bad");
-        }
-
-        String rating = parts[1].toLowerCase();
-        if (!"good".equals(rating) && !"bad".equals(rating)) {
-            return (cId, input) -> new SendMessage(String.valueOf(cId),
-                    "Некорректная оценка. Используйте good или bad");
-        }
-
-
-        PairingContext context = pairingContexts.get(chatId);
-        if (context == null) {
-            return (cId, input) -> new SendMessage(String.valueOf(cId),
-                    "Нет активного сочетания для оценки");
-        }
-
-
-        if ("good".equals(rating)) {
-            userStates.put(chatId, "CONFIRM_FAVORITE");
-            return (cId, input) -> {
-                // Предлагаем пользователю добавить сочетание в избранное
-                SendMessage message = new SendMessage(String.valueOf(cId),
-                        "Сочетание оценено положительно. Добавить в избранное? (да/нет)");
-                message.setReplyMarkup(createYesNoKeyboard());
-                return message;
-            };
-        } else {
-
-            pairingContexts.remove(chatId);
-            return (cId, input) -> new SendMessage(String.valueOf(cId),
-                    "Спасибо за оценку! Попробуйте другие сочетания.");
-        }
-    }
-
-    /**
-     * Обрабатывает состояние пользователя (подтверждение добавления в избранное)
-     * @param state текущее состояние пользователя
-     * @param chatId ID чата
-     * @param input ввод пользователя
-     * @return команда для обработки состояния
-     */
-
     private static Command handleUserState(String state, long chatId, String input) {
         if ("CONFIRM_FAVORITE".equals(state)) {
             userStates.remove(chatId);
@@ -256,32 +215,74 @@ public class CommandFactory {
                         "Ошибка: контекст сочетания утерян");
             }
 
-
             if ("да".equalsIgnoreCase(input)) {
                 try {
-                    // Сохраняем сочетание в Excel
-                    ExcelFavoritesManager.addFavorite(context.getWineName(), context.getDishName());
+                    ExcelFavoritesManager.addFavorite(context.getWineName(),
+                            context.getDish().getName() + " - " + context.getDish().toString());
                     pairingContexts.remove(chatId);
-                    return (cId, ignored2) -> new SendMessage(String.valueOf(cId),
+                    SendMessage message = new SendMessage(String.valueOf(chatId),
                             "Сочетание добавлено в избранное!");
+                    message.setReplyMarkup(createMainKeyboard());
+                    return (cId, ignored2) -> message;
                 } catch (Exception e) {
                     return (cId, ignored2) -> new SendMessage(String.valueOf(cId),
                             "Ошибка при добавлении в избранное: " + e.getMessage());
                 }
             } else {
-
                 pairingContexts.remove(chatId);
-                return (cId, ignored2) -> new SendMessage(String.valueOf(cId),
+                SendMessage message = new SendMessage(String.valueOf(chatId),
                         "Хорошо, сочетание не было сохранено.");
+                message.setReplyMarkup(createMainKeyboard());
+                return (cId, ignored2) -> message;
             }
         }
         return new UnknownCommand();
     }
 
-    /**
-     * Создает клавиатуру с кнопками "Да"/"Нет"
-     * @return объект ReplyKeyboardMarkup
-     */
+    public static ReplyKeyboardMarkup createMainKeyboard() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(false);
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+
+        KeyboardRow row1 = new KeyboardRow();
+        row1.add("/red");
+        row1.add("/white");
+        row1.add("/rose");
+        row1.add("/dessert");
+
+        KeyboardRow row2 = new KeyboardRow();
+        row2.add("/wines");
+        row2.add("/dishes");
+        row2.add("/rate");
+
+        KeyboardRow row3 = new KeyboardRow();
+        row3.add("/favorites");
+        row3.add("/help");
+
+        keyboard.add(row1);
+        keyboard.add(row2);
+        keyboard.add(row3);
+
+        keyboardMarkup.setKeyboard(keyboard);
+        return keyboardMarkup;
+    }
+
+    private static ReplyKeyboardMarkup createRatingKeyboard() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(true);
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+        KeyboardRow row = new KeyboardRow();
+        row.add("хорошо");
+        row.add("плохо");
+        keyboard.add(row);
+
+        keyboardMarkup.setKeyboard(keyboard);
+        return keyboardMarkup;
+    }
 
     private static ReplyKeyboardMarkup createYesNoKeyboard() {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -297,14 +298,6 @@ public class CommandFactory {
         keyboardMarkup.setKeyboard(keyboard);
         return keyboardMarkup;
     }
-
-    /**
-     * Создает команду для вывода списка элементов
-     * @param header заголовок списка
-     * @param supplier поставщик данных (может выбрасывать исключения)
-     * @param formatter функция форматирования элементов
-     * @return команда для вывода списка
-     */
 
     private static <T> Command createListCommand(
             String header,
@@ -328,35 +321,26 @@ public class CommandFactory {
         };
     }
 
-    /**
-     * Функциональный интерфейс для поставщиков, которые могут выбрасывать исключения
-     * @param <T> тип возвращаемого значения
-     */
-
     @FunctionalInterface
     private interface ThrowingSupplier<T> {
         T get() throws Exception;
     }
 
-    /**
-     * Класс для хранения контекста текущего сочетания вина и блюда
-     */
-
     public static class PairingContext {
         private final String wineName;
-        private final String dishName;
+        private final Dish dish;
 
-        public PairingContext(String wineName, String dishName) {
+        public PairingContext(String wineName, Dish dish) {
             this.wineName = wineName;
-            this.dishName = dishName;
+            this.dish = dish;
         }
 
         public String getWineName() {
             return wineName;
         }
 
-        public String getDishName() {
-            return dishName;
+        public Dish getDish() {
+            return dish;
         }
     }
 }

@@ -84,14 +84,16 @@ public class WinePairingBot extends TelegramLongPollingBot {
         String welcomeText = "🍷 *Добро пожаловать!* 🍽\n\n" +
                 "Я помогу вам подобрать идеальные сочетания вин и блюд.\n\n" +
                 "*Основные команды:*\n" +
-                "🔹[Название вина] - подбор блюд к вину\n" +
-                "🔹/wines - список всех вин\n" +
-                "🔹/dishes - список всех блюд\n" +
-                "🔹/addfavwine - добавить вино в избранное\n" +
-                "🔹/addfavdish - добавить блюдо в избранное\n" +
-                "🔹/favwines - список избранных вин\n" +
-                "🔹/favdishes - список избранных блюд\n" +
-                "🔹/help - справка по командам\n" +
+                "/red - красные вина\n" +
+                "/white - белые вина\n" +
+                "/rose - розовые вина\n" +
+                "/dessert - десертные вина\n" +
+                "[Название вина] - подбор блюд\n" +
+                "/wines - список всех вин\n" +
+                "/dishes - список всех блюд\n" +
+                "/rate - оценить текущее сочетание\n" +
+                "/favorites - избранные сочетания\n" +
+                "/help - справка\n" +
                 "Выберите действие:";
 
         message.setText(welcomeText);
@@ -112,18 +114,20 @@ public class WinePairingBot extends TelegramLongPollingBot {
 
         // Первый ряд кнопок
         KeyboardRow row1 = new KeyboardRow();
-        row1.add("/wines");
-        row1.add("/dishes");
+        row1.add("/red");
+        row1.add("/white");
+        row1.add("/rose");
+        row1.add("/dessert");
 
         // Второй ряд кнопок
         KeyboardRow row2 = new KeyboardRow();
-        row2.add("/addfavdish");
-        row2.add("/addfavwine");
-        row2.add("/favwines");
+        row2.add("/wines");
+        row2.add("/dishes");
+        row2.add("/rate");
 
         // Третий ряд кнопок
         KeyboardRow row3 = new KeyboardRow();
-        row3.add("/favdishes");
+        row3.add("/favorites");
         row3.add("/help");
 
         keyboard.add(row1);

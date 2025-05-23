@@ -6,13 +6,16 @@ public class UnknownCommand implements Command {
     @Override
     public SendMessage execute(String chatId, String input) {
         return new SendMessage(chatId, "Неизвестная команда. Доступные команды:\n" +
-                "[Название вина] - подбор блюд к вину\n" +
+                "Доступные команды:\n" +
+                "/red - красные вина\n" +
+                "/white - белые вина\n" +
+                "/rose - розовые вина\n" +
+                "/dessert - десертные вина\n" +
+                "[Название вина] - подбор блюд\n" +
                 "/wines - список всех вин\n" +
                 "/dishes - список всех блюд\n" +
-                "/addfavwine - добавить вино в избранное\n" +
-                "/addfavdish - добавить блюдо в избранное\n" +
-                "/favwines - список избранных вин\n" +
-                "/favdishes - список избранных блюд\n" +
-                "/help - справка по командам");
+                "/rate - оценить текущее сочетание\n" +
+                "/favorites - избранные сочетания\n" +
+                "/help - справка");
     }
 }
