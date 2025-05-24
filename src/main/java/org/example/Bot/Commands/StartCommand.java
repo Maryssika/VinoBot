@@ -1,7 +1,13 @@
 package org.example.Bot.Commands;
 
-import org.example.Bot.Commands.Command;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.example.Bot.Commands.Factories.CommandFactory.createMainKeyboard;
 
 public class StartCommand implements Command {
     @Override
@@ -9,23 +15,25 @@ public class StartCommand implements Command {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.enableMarkdown(true);
-
-        String welcomeText = "🍷 *Добро пожаловать в WinePairingBot!* 🍽\n\n" +
-                "Я помогу вам подобрать идеальные сочетания вин и блюд.\n\n" +
-                "*Доступные команды:*\n" +
-                "/red - красные вина\n" +
-                "/white - белые вина\n" +
-                "/rose - розовые вина\n" +
-                "/dessert - десертные вина\n" +
-                "[Название вина] - подбор блюд\n" +
-                "/wines - список всех вин\n" +
-                "/dishes - список всех блюд\n" +
-                "/rate - оценить текущее сочетание\n" +
-                "/favorites - избранные сочетания\n" +
-                "/help - справка\n\n" +
-                "Просто введите команду или нажмите на неё!";
-
-        message.setText(welcomeText);
+        message.setText(getWelcomeText());
+        message.setReplyMarkup(createMainKeyboard());
         return message;
+    }
+
+    private String getWelcomeText() {
+        return """
+            🍷 *Винный гид* 🍽
+            
+            Я помогу подобрать идеальные сочетания вин и блюд!
+            
+            *Основные команды:*
+            🔹 /pair - подбор сочетаний
+            🔹 /favorites - ваши избранные пары
+            🔹 /red - красные вина
+            🔹 /white - белые вина
+            🔹 /rose - розовые вина
+            🔹 /help - справка
+            
+            Просто введите команду или нажмите кнопку меню!""";
     }
 }

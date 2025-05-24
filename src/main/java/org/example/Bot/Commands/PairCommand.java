@@ -5,10 +5,13 @@ import org.example.DAO.Dish;
 import org.example.DAO.DishDAO;
 import org.example.DAO.WineDAO;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.example.Bot.Commands.Factories.CommandFactory.createMainKeyboard;
 
 public class PairCommand implements Command {
     private final WineDAO wineDAO;
@@ -28,14 +31,8 @@ public class PairCommand implements Command {
 
     @Override
     public SendMessage execute(String chatId, String input) {
-        String searchName = wineName.isEmpty() ? input.trim() : wineName;
-
-        if (searchName.isEmpty()) {
-            return new SendMessage(chatId, "Пожалуйста, укажите вино для подбора");
-        }
-
         try {
-            List<String> pairingNames = wineDAO.findPairings(searchName);
+            List<String> pairingNames = wineDAO.findPairings(wineName);
             List<Dish> pairings = pairingNames.stream()
                     .map(dishName -> {
                         try {
@@ -51,23 +48,23 @@ public class PairCommand implements Command {
                     .toList();
 
             if (pairings.isEmpty()) {
-                return new SendMessage(chatId, "Не найдено подходящих блюд для вина: " + searchName);
+                return new SendMessage(chatId, "Не найдено подходящих блюд для вина: " + wineName);
             }
 
-            StringBuilder response = new StringBuilder("🍷 *Подобранные сочетания для " + searchName + ":*\n\n");
+            StringBuilder response = new StringBuilder("🍷 *Подобранные сочетания для " + wineName + ":*\n\n");
             for (Dish dish : pairings) {
                 response.append("🍽 *").append(dish.getName()).append("*\n")
                         .append(dish.toString()).append("\n\n");
             }
 
             pairingContexts.put(this.chatId,
-                    new CommandFactory.PairingContext(searchName, pairings.get(0)));
+                    new CommandFactory.PairingContext(wineName, pairings.get(0)));
 
             response.append("Для оценки этого сочетания используйте команду /rate");
 
             SendMessage message = new SendMessage(chatId, response.toString());
             message.setParseMode("Markdown");
-            message.setReplyMarkup(CommandFactory.createMainKeyboard());
+            message.setReplyMarkup(createMainKeyboard());
             return message;
         } catch (Exception e) {
             return new SendMessage(chatId, "Ошибка при поиске сочетаний: " + e.getMessage());

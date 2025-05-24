@@ -84,16 +84,16 @@ public class WinePairingBot extends TelegramLongPollingBot {
         String welcomeText = "🍷 *Добро пожаловать!* 🍽\n\n" +
                 "Я помогу вам подобрать идеальные сочетания вин и блюд.\n\n" +
                 "*Основные команды:*\n" +
+                "/pair - подобрать сочетания для вина\n" +
                 "/red - красные вина\n" +
                 "/white - белые вина\n" +
                 "/rose - розовые вина\n" +
                 "/dessert - десертные вина\n" +
-                "[Название вина] - подбор блюд\n" +
                 "/wines - список всех вин\n" +
                 "/dishes - список всех блюд\n" +
                 "/rate - оценить текущее сочетание\n" +
                 "/favorites - избранные сочетания\n" +
-                "/help - справка\n" +
+                "/help - справка" +
                 "Выберите действие:";
 
         message.setText(welcomeText);
@@ -123,10 +123,11 @@ public class WinePairingBot extends TelegramLongPollingBot {
         KeyboardRow row2 = new KeyboardRow();
         row2.add("/wines");
         row2.add("/dishes");
-        row2.add("/rate");
+        row2.add("/pair");
 
         // Третий ряд кнопок
         KeyboardRow row3 = new KeyboardRow();
+        row3.add("/rate");
         row3.add("/favorites");
         row3.add("/help");
 

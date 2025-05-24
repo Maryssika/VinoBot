@@ -26,6 +26,7 @@ public class CommandFactory {
     private static final DishDAO dishDAO;
     private static final Map<Long, String> userStates = new HashMap<>();
     private static final Map<Long, PairingContext> pairingContexts = new HashMap<>();
+    private static final Map<Long, Boolean> waitingForWineInput = new HashMap<>();
 
     static {
         try {
@@ -37,6 +38,7 @@ public class CommandFactory {
             throw new RuntimeException("Ошибка инициализации CommandFactory", e);
         }
     }
+
 
     private static Dotenv loadConfiguration() {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
@@ -67,6 +69,23 @@ public class CommandFactory {
             return new StartCommand();
         }
 
+        // Обработка команды отмены
+        if ("отмена".equalsIgnoreCase(messageText.trim())) {
+            waitingForWineInput.remove(chatId);
+            return (cId, input) -> {
+                SendMessage message = new SendMessage(String.valueOf(cId),
+                        "Поиск сочетаний отменен.");
+                message.setReplyMarkup(createMainKeyboard());
+                return message;
+            };
+        }
+
+        // Если пользователь в состоянии ожидания ввода вина
+        if (waitingForWineInput.getOrDefault(chatId, false)) {
+            waitingForWineInput.remove(chatId);
+            return new PairCommand(wineDAO, dishDAO, messageText.trim(), chatId, pairingContexts);
+        }
+
         String state = userStates.get(chatId);
         if (state != null) {
             return handleUserState(state, chatId, messageText.trim());
@@ -86,10 +105,14 @@ public class CommandFactory {
         else if (lowerCaseText.startsWith("/dessert")) {
             return createWineTypeFilterCommand("Десертное");
         }
-        else if (lowerCaseText.startsWith("/pair") || !messageText.startsWith("/")) {
-            String wineName = lowerCaseText.startsWith("/pair") ?
-                    messageText.substring(5).trim() : messageText.trim();
-            return new PairCommand(wineDAO, dishDAO, wineName, chatId, pairingContexts);
+        else if (lowerCaseText.startsWith("/pair")) {
+            waitingForWineInput.put(chatId, true);
+            return (cId, input) -> {
+                SendMessage message = new SendMessage(String.valueOf(cId),
+                        "Введите название вина для поиска сочетаний:");
+                message.setReplyMarkup(createCancelKeyboard());
+                return message;
+            };
         }
         else if (lowerCaseText.startsWith("/wines")) {
             return createListCommand("Список вин:\n", wineDAO::getAllWines, Wine::toString);
@@ -121,11 +144,11 @@ public class CommandFactory {
         else if (lowerCaseText.startsWith("/help")) {
             SendMessage helpMessage = new SendMessage(String.valueOf(chatId),
                     "Доступные команды:\n" +
+                            "/pair - подобрать сочетания для вина\n" +
                             "/red - красные вина\n" +
                             "/white - белые вина\n" +
                             "/rose - розовые вина\n" +
                             "/dessert - десертные вина\n" +
-                            "[Название вина] - подбор блюд\n" +
                             "/wines - список всех вин\n" +
                             "/dishes - список всех блюд\n" +
                             "/rate - оценить текущее сочетание\n" +
@@ -136,6 +159,20 @@ public class CommandFactory {
         }
 
         return new UnknownCommand();
+    }
+
+    private static ReplyKeyboardMarkup createCancelKeyboard() {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        keyboardMarkup.setResizeKeyboard(true);
+        keyboardMarkup.setOneTimeKeyboard(true);
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+        KeyboardRow row = new KeyboardRow();
+        row.add("Отмена");
+        keyboard.add(row);
+
+        keyboardMarkup.setKeyboard(keyboard);
+        return keyboardMarkup;
     }
 
     private static Command handleRateCommand(long chatId) {
@@ -255,9 +292,10 @@ public class CommandFactory {
         KeyboardRow row2 = new KeyboardRow();
         row2.add("/wines");
         row2.add("/dishes");
-        row2.add("/rate");
+        row2.add("/pair");
 
         KeyboardRow row3 = new KeyboardRow();
+        row3.add("/rate");
         row3.add("/favorites");
         row3.add("/help");
 
