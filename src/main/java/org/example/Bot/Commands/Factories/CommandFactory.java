@@ -130,14 +130,17 @@ public class CommandFactory {
             return (cId, input) -> {
                 try {
                     List<String> favorites = ExcelFavoritesManager.getFavorites();
-                    SendMessage message = new SendMessage(String.valueOf(cId), favorites.isEmpty() ?
-                            "Список избранных сочетаний пуст" :
-                            "Избранные сочетания:\n" + String.join("\n\n", favorites));
+                    SendMessage message = new SendMessage(String.valueOf(cId),
+                            favorites.isEmpty()
+                                    ? "У вас пока нет избранных сочетаний"
+                                    : "🍷 *Ваши избранные сочетания* 🍽\n\n" +
+                                    String.join("\n\n", favorites));
+                    message.setParseMode("Markdown");
                     message.setReplyMarkup(createMainKeyboard());
                     return message;
                 } catch (Exception e) {
                     return new SendMessage(String.valueOf(cId),
-                            "Ошибка при получении избранных сочетаний: " + e.getMessage());
+                            "Ошибка при загрузке избранного: " + e.getMessage());
                 }
             };
         }
@@ -254,11 +257,13 @@ public class CommandFactory {
 
             if ("да".equalsIgnoreCase(input)) {
                 try {
-                    ExcelFavoritesManager.addFavorite(context.getWineName(),
-                            context.getDish().getName() + " - " + context.getDish().toString());
+                    String dishDescription = context.getDish().getName() + " - " + context.getDish().toString();
+                    ExcelFavoritesManager.PairingAddResult result = ExcelFavoritesManager.addFavorite(
+                            context.getWineName(),
+                            dishDescription);
+
                     pairingContexts.remove(chatId);
-                    SendMessage message = new SendMessage(String.valueOf(chatId),
-                            "Сочетание добавлено в избранное!");
+                    SendMessage message = new SendMessage(String.valueOf(chatId), result.getMessage());
                     message.setReplyMarkup(createMainKeyboard());
                     return (cId, ignored2) -> message;
                 } catch (Exception e) {
@@ -367,10 +372,12 @@ public class CommandFactory {
     public static class PairingContext {
         private final String wineName;
         private final Dish dish;
+        private final Date timestamp;
 
         public PairingContext(String wineName, Dish dish) {
             this.wineName = wineName;
             this.dish = dish;
+            this.timestamp = new Date();
         }
 
         public String getWineName() {
@@ -379,6 +386,10 @@ public class CommandFactory {
 
         public Dish getDish() {
             return dish;
+        }
+
+        public Date getTimestamp() {
+            return timestamp;
         }
     }
 }

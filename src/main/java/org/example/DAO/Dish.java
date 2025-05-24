@@ -237,7 +237,8 @@ public class Dish {
                         "🔹 *Жирность:* %d/5\n" +
                         "🔹 *Белок:* %d/5\n\n" +
                         "🍽 *Ингредиенты:*\n%s\n\n" +
-                        "📝 *Рецепт:*\n%s",
+                        "📝 *Рецепт:*\n%s\n\n"+
+                        "------------",
                 name, category,
                 getCookingTimeFormatted(),
                 fatContent, proteinContent,
