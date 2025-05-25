@@ -251,8 +251,12 @@ public class CommandFactory {
             userStates.remove(chatId);
             PairingContext context = pairingContexts.get(chatId);
             if (context == null) {
-                return (cId, ignored) -> new SendMessage(String.valueOf(cId),
-                        "Ошибка: контекст сочетания утерян");
+                return (cId, ignored) -> {
+                    SendMessage msg = new SendMessage(String.valueOf(cId),
+                            "Ошибка: контекст сочетания утерян");
+                    msg.setReplyMarkup(createMainKeyboard());
+                    return msg;
+                };
             }
 
             if ("да".equalsIgnoreCase(input)) {
@@ -262,13 +266,23 @@ public class CommandFactory {
                             context.getWineName(),
                             dishDescription);
 
-                    pairingContexts.remove(chatId);
                     SendMessage message = new SendMessage(String.valueOf(chatId), result.getMessage());
+                    message.setParseMode("Markdown");
                     message.setReplyMarkup(createMainKeyboard());
+
+                    // Удаляем контекст только если добавление успешно
+                    if (result.isSuccess()) {
+                        pairingContexts.remove(chatId);
+                    }
+
                     return (cId, ignored2) -> message;
                 } catch (Exception e) {
-                    return (cId, ignored2) -> new SendMessage(String.valueOf(cId),
-                            "Ошибка при добавлении в избранное: " + e.getMessage());
+                    return (cId, ignored2) -> {
+                        SendMessage msg = new SendMessage(String.valueOf(cId),
+                                "❌ Ошибка при добавлении в избранное: " + e.getMessage());
+                        msg.setReplyMarkup(createMainKeyboard());
+                        return msg;
+                    };
                 }
             } else {
                 pairingContexts.remove(chatId);

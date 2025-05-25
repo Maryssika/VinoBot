@@ -11,12 +11,11 @@ public class ExcelFavoritesManager {
     private static final String SHEET_NAME = "Pairings";
 
     public static PairingAddResult addFavorite(String wineName, String dishDescription) throws IOException {
-        // Проверяем существование файла
         File file = new File(FILE_NAME);
-        boolean fileExists = file.exists();
+        List<Pairing> existingPairings = new ArrayList<>();
 
-        // Если файл существует, проверяем наличие сочетания
-        if (fileExists) {
+        // Если файл существует, загружаем все существующие сочетания
+        if (file.exists()) {
             try (Workbook workbook = new XSSFWorkbook(new FileInputStream(file))) {
                 Sheet sheet = workbook.getSheet(SHEET_NAME);
                 if (sheet != null) {
@@ -25,21 +24,27 @@ public class ExcelFavoritesManager {
                         if (row != null) {
                             String existingWine = row.getCell(0).getStringCellValue();
                             String existingDish = row.getCell(1).getStringCellValue();
-                            if (existingWine.equalsIgnoreCase(wineName) &&
-                                    existingDish.equalsIgnoreCase(dishDescription)) {
-                                return new PairingAddResult(false, "Сочетание уже есть в избранном:\n" +
-                                        "🍷 " + existingWine + "\n" +
-                                        "🍽 " + existingDish);
-                            }
+                            existingPairings.add(new Pairing(existingWine, existingDish));
                         }
                     }
                 }
             }
         }
 
-        // Если сочетание не найдено или файла нет - добавляем
+        // Проверяем, есть ли уже такое сочетание
+        for (Pairing pairing : existingPairings) {
+            if (pairing.wine.equalsIgnoreCase(wineName) &&
+                    pairing.dish.equalsIgnoreCase(dishDescription)) {
+                return new PairingAddResult(false,
+                        "⚠️ *Это сочетание уже есть в вашем избранном!*\n\n" +
+                                "🍷 *Вино:* " + pairing.wine + "\n" +
+                                "🍽 *Блюдо:* " + pairing.dish);
+            }
+        }
+
+        // Если сочетания нет - добавляем
         Workbook workbook;
-        if (fileExists) {
+        if (file.exists()) {
             workbook = new XSSFWorkbook(new FileInputStream(file));
         } else {
             workbook = new XSSFWorkbook();
@@ -53,17 +58,27 @@ public class ExcelFavoritesManager {
             headerRow.createCell(1).setCellValue("Dish");
         }
 
-        int lastRow = sheet.getLastRowNum();
-        Row row = sheet.createRow(lastRow + 1);
-        row.createCell(0).setCellValue(wineName);
-        row.createCell(1).setCellValue(dishDescription);
+        Row newRow = sheet.createRow(sheet.getLastRowNum() + 1);
+        newRow.createCell(0).setCellValue(wineName);
+        newRow.createCell(1).setCellValue(dishDescription);
 
         try (FileOutputStream outputStream = new FileOutputStream(FILE_NAME)) {
             workbook.write(outputStream);
         }
         workbook.close();
 
-        return new PairingAddResult(true, "Сочетание успешно добавлено в избранное!");
+        return new PairingAddResult(true, "✅ *Сочетание успешно добавлено в избранное!*");
+    }
+
+    // Вспомогательный класс для хранения пар вино-блюдо
+    private static class Pairing {
+        String wine;
+        String dish;
+
+        Pairing(String wine, String dish) {
+            this.wine = wine;
+            this.dish = dish;
+        }
     }
 
     public static List<String> getFavorites() throws IOException {
