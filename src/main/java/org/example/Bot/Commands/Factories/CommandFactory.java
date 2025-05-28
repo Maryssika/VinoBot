@@ -39,7 +39,9 @@ public class CommandFactory {
         }
     }
 
-
+    /**
+     * Загружает конфигурацию из .env файла
+     */
     private static Dotenv loadConfiguration() {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         validateEnvVariable(dotenv, "POSTGRES_URL");
@@ -50,12 +52,18 @@ public class CommandFactory {
         return dotenv;
     }
 
+    /**
+     * Проверяет наличие и валидность переменной окружения
+     */
     private static void validateEnvVariable(Dotenv dotenv, String key) {
         if (dotenv.get(key) == null || dotenv.get(key).isEmpty()) {
             throw new IllegalStateException("Необходимая переменная " + key + " отсутствует в .env файле");
         }
     }
 
+    /**
+     * Создает соединение с базой данных PostgreSQL
+     */
     private static Connection createDatabaseConnection(Dotenv dotenv) throws SQLException {
         return DriverManager.getConnection(
                 dotenv.get("POSTGRES_URL"),
@@ -64,6 +72,12 @@ public class CommandFactory {
         );
     }
 
+    /**
+     * Возвращает соответствующую команду на основе текста сообщения
+     * @param messageText текст сообщения от пользователя
+     * @param chatId ID чата пользователя
+     * @return объект Command для выполнения
+     */
     public static Command getCommand(String messageText, long chatId) {
         if ("/start".equalsIgnoreCase(messageText.trim())) {
             return new StartCommand();
@@ -383,6 +397,9 @@ public class CommandFactory {
         T get() throws Exception;
     }
 
+    /**
+     * Внутренний класс для хранения контекста текущего сочетания вина и блюда
+     */
     public static class PairingContext {
         private final String wineName;
         private final Dish dish;
