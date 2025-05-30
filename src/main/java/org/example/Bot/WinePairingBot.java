@@ -9,10 +9,12 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+
 
 /**
  * Основной класс Telegram бота для подбора сочетаний вина и блюд.
@@ -20,6 +22,7 @@ import java.util.Objects;
 public class WinePairingBot extends TelegramLongPollingBot {
     private final String botToken;
     private final String botUsername;
+    private final Map<Long, Boolean> ageVerifiedUsers = new HashMap<>();
 
     /**
      * Конструктор бота
@@ -48,19 +51,46 @@ public class WinePairingBot extends TelegramLongPollingBot {
             String messageText = update.getMessage().getText();
 
             try {
-                // Обработка команды /start
+                // Обработка команды /start (всегда запрашиваем возраст)
                 if ("/start".equalsIgnoreCase(messageText)) {
-                    execute(createStartMessage(chatId));
+                    SendMessage message = new SendMessage();
+                    message.setChatId(String.valueOf(chatId));
+                    message.setText("🍷 *Проверка возраста*\n\n" +
+                            "Для использования бота вам должно быть 18 лет или больше.\n\n" +
+                            "Пожалуйста, введите вашу дату рождения в формате ДД.ММ.ГГГГ (например, 01.01.1990):");
+                    message.setParseMode("Markdown");
+                    execute(message);
                     return;
                 }
 
-                // Получаем команду из фабрики
+                // Проверка введенной даты рождения
+                if (messageText.matches("\\d{2}\\.\\d{2}\\.\\d{4}")) {
+                    if (isUserAdult(messageText)) {
+                        // Возраст подтвержден - показываем стартовое сообщение
+                        execute(createStartMessage(chatId));
+                    } else {
+                        SendMessage message = new SendMessage();
+                        message.setChatId(String.valueOf(chatId));
+                        message.setText("❌ *Доступ запрещен*\n\n" +
+                                "К сожалению, вам меньше 18 лет. Использование бота запрещено.");
+                        message.setParseMode("Markdown");
+                        execute(message);
+                    }
+                    return;
+                }
+
+                // Если это не /start и не дата рождения - проверяем возраст
+                if (!isUserAdult(String.valueOf(update.getMessage().getChatId()))) {
+                    SendMessage message = new SendMessage();
+                    message.setChatId(String.valueOf(chatId));
+                    message.setText("⚠️ Пожалуйста, сначала подтвердите ваш возраст, используя команду /start");
+                    execute(message);
+                    return;
+                }
+
+                // Основная логика обработки команд
                 Command command = CommandFactory.getCommand(messageText, chatId);
-
-                // Выполняем команду
                 SendMessage response = command.execute(String.valueOf(chatId), messageText);
-
-                // Отправляем ответ
                 execute(response);
 
             } catch (TelegramApiException e) {
@@ -73,34 +103,57 @@ public class WinePairingBot extends TelegramLongPollingBot {
         }
     }
 
+    public boolean isUserAdult(String birthDate) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
+            Date birthDateObj = sdf.parse(birthDate);
+            Calendar birth = Calendar.getInstance();
+            birth.setTime(birthDateObj);
+            Calendar today = Calendar.getInstance();
+
+            int age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR);
+            if (today.get(Calendar.MONTH) < birth.get(Calendar.MONTH) ||
+                    (today.get(Calendar.MONTH) == birth.get(Calendar.MONTH) &&
+                            today.get(Calendar.DAY_OF_MONTH) < birth.get(Calendar.DAY_OF_MONTH))) {
+                age--;
+            }
+
+            return age >= 18;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+
+
     /**
      * Создает приветственное сообщение для команды /start
      */
-    private SendMessage createStartMessage(long chatId) {
-        SendMessage message = new SendMessage();
-        message.setChatId(String.valueOf(chatId));
-        message.enableMarkdown(true);
+        private SendMessage createStartMessage(long chatId) {
+            SendMessage message = new SendMessage();
+            message.setChatId(String.valueOf(chatId));
+            message.enableMarkdown(true);
 
-        String welcomeText = "🍷 *Добро пожаловать!* 🍽\n\n" +
-                "Я помогу вам подобрать идеальные сочетания вин и блюд.\n\n" +
-                "*Основные команды:*\n" +
-                "/pair - подобрать сочетания для вина\n" +
-                "/red - красные вина\n" +
-                "/white - белые вина\n" +
-                "/rose - розовые вина\n" +
-                "/dessert - десертные вина\n" +
-                "/wines - список всех вин\n" +
-                "/dishes - список всех блюд\n" +
-                "/rate - оценить текущее сочетание\n" +
-                "/favorites - избранные сочетания\n" +
-                "/help - справка" +
-                "Выберите действие:";
+            String welcomeText = "🍷 *Добро пожаловать!* 🍽\n\n" +
+                    "Я помогу вам подобрать идеальные сочетания вин и блюд.\n\n" +
+                    "*Основные команды:*\n" +
+                    "/pair - подобрать сочетания для вина\n" +
+                    "/red - красные вина\n" +
+                    "/white - белые вина\n" +
+                    "/rose - розовые вина\n" +
+                    "/dessert - десертные вина\n" +
+                    "/wines - список всех вин\n" +
+                    "/dishes - список всех блюд\n" +
+                    "/rate - оценить текущее сочетание\n" +
+                    "/favorites - избранные сочетания\n" +
+                    "/help - справка\n\n" +
+                    "Выберите действие:";
 
-        message.setText(welcomeText);
-        message.setReplyMarkup(createMainKeyboard());
+            message.setText(welcomeText);
+            message.setReplyMarkup(createMainKeyboard());
 
-        return message;
-    }
+            return message;
+        }
 
     /**
      * Создает основную клавиатуру
