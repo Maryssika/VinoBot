@@ -65,7 +65,7 @@ public class WinePairingBot extends TelegramLongPollingBot {
 
                 // Проверка введенной даты рождения
                 if (messageText.matches("\\d{2}\\.\\d{2}\\.\\d{4}")) {
-                    if (isUserAdult(messageText)) {
+                    if (isUserAdult(messageText, update)) {  // Передаем update как параметр
                         // Возраст подтвержден - показываем стартовое сообщение
                         execute(createStartMessage(chatId));
                     } else {
@@ -80,7 +80,7 @@ public class WinePairingBot extends TelegramLongPollingBot {
                 }
 
                 // Если это не /start и не дата рождения - проверяем возраст
-                if (!isUserAdult(String.valueOf(update.getMessage().getChatId()))) {
+                if (!ageVerifiedUsers.getOrDefault(chatId, false)) {
                     SendMessage message = new SendMessage();
                     message.setChatId(String.valueOf(chatId));
                     message.setText("⚠️ Пожалуйста, сначала подтвердите ваш возраст, используя команду /start");
@@ -103,28 +103,38 @@ public class WinePairingBot extends TelegramLongPollingBot {
         }
     }
 
-    public boolean isUserAdult(String birthDate) {
+    public boolean isUserAdult(String input, Update update) {  // Добавляем параметр Update
+        // Если input - это chatId (число), проверяем в карте ageVerifiedUsers
         try {
-            SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
-            Date birthDateObj = sdf.parse(birthDate);
-            Calendar birth = Calendar.getInstance();
-            birth.setTime(birthDateObj);
-            Calendar today = Calendar.getInstance();
+            long chatId = Long.parseLong(input);
+            return ageVerifiedUsers.getOrDefault(chatId, false);
+        } catch (NumberFormatException e) {
+            // Если input не число, значит это дата рождения в формате ДД.ММ.ГГГГ
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy");
+                Date birthDateObj = sdf.parse(input);
+                Calendar birth = Calendar.getInstance();
+                birth.setTime(birthDateObj);
+                Calendar today = Calendar.getInstance();
 
-            int age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR);
-            if (today.get(Calendar.MONTH) < birth.get(Calendar.MONTH) ||
-                    (today.get(Calendar.MONTH) == birth.get(Calendar.MONTH) &&
-                            today.get(Calendar.DAY_OF_MONTH) < birth.get(Calendar.DAY_OF_MONTH))) {
-                age--;
+                int age = today.get(Calendar.YEAR) - birth.get(Calendar.YEAR);
+                if (today.get(Calendar.MONTH) < birth.get(Calendar.MONTH) ||
+                        (today.get(Calendar.MONTH) == birth.get(Calendar.MONTH) &&
+                                today.get(Calendar.DAY_OF_MONTH) < birth.get(Calendar.DAY_OF_MONTH))) {
+                    age--;
+                }
+
+                // Если возраст подтвержден, сохраняем в карту
+                if (age >= 18) {
+                    ageVerifiedUsers.put(update.getMessage().getChatId(), true);
+                }
+
+                return age >= 18;
+            } catch (Exception ex) {
+                return false;
             }
-
-            return age >= 18;
-        } catch (Exception e) {
-            return false;
         }
     }
-
-
 
     /**
      * Создает приветственное сообщение для команды /start
